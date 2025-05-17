@@ -27,6 +27,7 @@ dependencies {
     // Spring Boot Admin 서버
     implementation 'de.codecentric:spring-boot-admin-starter-server:3.1.7'
     implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'com.github.gavlyukovskiy:datasource-proxy-spring-boot-starter:1.9.0'
 
     // 보안 (선택사항)
     implementation 'org.springframework.boot:spring-boot-starter-security'

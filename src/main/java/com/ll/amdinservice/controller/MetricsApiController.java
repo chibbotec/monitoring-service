@@ -1,5 +1,10 @@
 package com.ll.amdinservice.controller;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -8,15 +13,43 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.HashMap;
-import java.util.Map;
-
 @RestController
 @RequestMapping("/api/metrics")
 @RequiredArgsConstructor
 public class MetricsApiController {
 
   private final RestTemplate restTemplate;
+
+  // 최근 쿼리 로그를 저장하는 큐 (최대 100개 항목을 저장)
+  private static final ConcurrentLinkedQueue<QueryLog> recentQueryLogs = new ConcurrentLinkedQueue<>();
+  private static final int MAX_LOG_SIZE = 100;
+
+  // 로그 정보를 저장할 내부 클래스
+  private static class QueryLog {
+    private final String time;
+    private final String service;
+    private final String type;
+    private final long executionTime;
+    private final String sql;
+
+    public QueryLog(String time, String service, String type, long executionTime, String sql) {
+      this.time = time;
+      this.service = service;
+      this.type = type;
+      this.executionTime = executionTime;
+      this.sql = sql;
+    }
+
+    public Map<String, Object> toMap() {
+      Map<String, Object> map = new HashMap<>();
+      map.put("time", time);
+      map.put("service", service);
+      map.put("type", type);
+      map.put("executionTime", executionTime);
+      map.put("sql", sql);
+      return map;
+    }
+  }
 
   @GetMapping("/{service}")
   public ResponseEntity<Map<String, Object>> getMetrics(@PathVariable String service) {
@@ -53,20 +86,40 @@ public class MetricsApiController {
     // 서비스별 Actuator 엔드포인트 URL 설정
     switch (serviceName) {
       case "techinterview":
-        url = "http://localhost:8081/actuator/prometheus";
+        url = "http://localhost:9040/actuator/prometheus";
         break;
       case "apigateway":
-        url = "http://localhost:8080/actuator/prometheus";
+        url = "http://localhost:9000/actuator/prometheus";
         break;
       default:
         throw new IllegalArgumentException("지원하지 않는 서비스: " + serviceName);
     }
 
-    // Prometheus 엔드포인트에서 메트릭 데이터 가져오기
-    String prometheusData = restTemplate.getForObject(url, String.class);
+    try {
+      // Prometheus 엔드포인트에서 메트릭 데이터 가져오기
+      String prometheusData = restTemplate.getForObject(url, String.class);
 
-    // Prometheus 형식 데이터 파싱
-    return parsePrometheusData(prometheusData, serviceName);
+      // Prometheus 형식 데이터 파싱
+      return parsePrometheusData(prometheusData, serviceName);
+    } catch (Exception e) {
+      Map<String, Object> errorResult = new HashMap<>();
+      errorResult.put("service", serviceName);
+      errorResult.put("error", "서비스에 연결할 수 없습니다: " + e.getMessage());
+      errorResult.put("selectQueries", 0);
+      errorResult.put("insertQueries", 0);
+      errorResult.put("updateQueries", 0);
+      errorResult.put("deleteQueries", 0);
+      errorResult.put("otherQueries", 0);
+      errorResult.put("queryExecutionTime", 0);
+      errorResult.put("queryExecutionCount", 0);
+      errorResult.put("queryTimeFast", 0);
+      errorResult.put("queryTimeMedium", 0);
+      errorResult.put("queryTimeSlow", 0);
+      errorResult.put("queryTimeVerySlow", 0);
+      errorResult.put("avgQueryTime", 0);
+      errorResult.put("totalQueries", 0);
+      return errorResult;
+    }
   }
 
   private Map<String, Object> parsePrometheusData(String prometheusData, String serviceName) {
@@ -187,14 +240,31 @@ public class MetricsApiController {
         (double) apiGatewayMetrics.get("queryTimeVerySlow"));
   }
 
-  // 최근 쿼리 로그 가져오기 (예시, 실제 구현은 로그 수집 시스템과 연동 필요)
+  // P6Spy 로그 추가 메서드 (다른 서비스에서 호출하는 API)
+  // 실제 프로젝트에서는 이 메서드가 p6spy로부터 로그를 수신하도록 구현해야 함
+  public static void addQueryLog(String time, String service, String type, long executionTime, String sql) {
+    recentQueryLogs.add(new QueryLog(time, service, type, executionTime, sql));
+
+    // 큐 크기 제한
+    while (recentQueryLogs.size() > MAX_LOG_SIZE) {
+      recentQueryLogs.poll();
+    }
+  }
+
+  // 최근 쿼리 로그 가져오기
   @GetMapping("/logs/{service}")
   public ResponseEntity<Map<String, Object>> getQueryLogs(@PathVariable String service) {
     Map<String, Object> result = new HashMap<>();
+    List<Map<String, Object>> logs = new ArrayList<>();
 
-    // 여기서는 가상의 로그 데이터 반환 (실제로는 로그 수집 시스템에서 가져와야 함)
-    result.put("logs", "서비스별 로그 수집은 별도의 로그 수집 시스템(ELK, Loki 등)과 연동 필요");
+    // 선택된 서비스에 해당하는 로그만 필터링
+    for (QueryLog log : recentQueryLogs) {
+      if ("all".equals(service) || log.service.equals(service)) {
+        logs.add(log.toMap());
+      }
+    }
 
+    result.put("logs", logs);
     return ResponseEntity.ok(result);
   }
 }

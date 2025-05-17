@@ -40,6 +40,27 @@
       font-weight: bold;
       margin-bottom: 10px;
     }
+    .status-indicator {
+      height: 10px;
+      width: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 5px;
+    }
+    .status-online {
+      background-color: #28a745;
+    }
+    .status-offline {
+      background-color: #dc3545;
+    }
+    .slow-query {
+      color: #dc3545;
+      font-weight: bold;
+    }
+    .medium-query {
+      color: #ffc107;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
@@ -48,12 +69,48 @@
 
   <!-- 서비스 선택 -->
   <div class="mb-4">
-    <label for="serviceSelector" class="form-label">서비스 선택:</label>
-    <select id="serviceSelector" class="form-select">
-      <option value="all">전체 서비스</option>
-      <option value="techinterview">Tech Interview 서비스</option>
-      <option value="apigateway">API Gateway</option>
-    </select>
+    <div class="row">
+      <div class="col-md-6">
+        <label for="serviceSelector" class="form-label">서비스 선택:</label>
+        <select id="serviceSelector" class="form-select">
+          <option value="all">전체 서비스</option>
+          <option value="techinterview">Tech Interview 서비스</option>
+          <option value="apigateway">API Gateway</option>
+        </select>
+      </div>
+      <div class="col-md-6 text-end">
+        <div id="lastUpdated">마지막 업데이트: --:--:--</div>
+        <div>
+          <button id="pauseButton" class="btn btn-outline-secondary btn-sm">일시정지</button>
+          <button id="refreshButton" class="btn btn-primary btn-sm">새로고침</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 서비스 상태 표시 -->
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">서비스 상태</div>
+        <div class="card-body">
+          <div class="d-flex justify-content-between mb-2">
+            <div>
+              <span class="status-indicator" id="techinterviewStatus"></span>
+              <span>Tech Interview 서비스</span>
+            </div>
+            <div id="techinterviewStatusText">확인 중...</div>
+          </div>
+          <div class="d-flex justify-content-between">
+            <div>
+              <span class="status-indicator" id="apigatewayStatus"></span>
+              <span>API Gateway</span>
+            </div>
+            <div id="apigatewayStatusText">확인 중...</div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- 요약 지표 -->
@@ -170,7 +227,8 @@
     select: 0,
     insert: 0,
     update: 0,
-    delete: 0
+    delete: 0,
+    other: 0
   };
 
   let timelineData = {
@@ -190,21 +248,67 @@
 
   let queryLogs = [];
 
+  // 자동 새로고침 상태
+  let autoRefresh = true;
+  let refreshInterval;
+  let refreshIntervalTime = 5000; // 5초마다 업데이트
+
   // 페이지 로드 시 초기화
   document.addEventListener('DOMContentLoaded', function() {
     initCharts();
+    setupEventListeners();
+    startAutoRefresh();
 
-    // 5초마다 데이터 업데이트
-    setInterval(fetchMetricsData, 5000);
+    // 초기 데이터 로드
+    fetchMetricsData();
+  });
 
+  // 이벤트 리스너 설정
+  function setupEventListeners() {
     // 서비스 선택 변경 이벤트
     document.getElementById('serviceSelector').addEventListener('change', function() {
       fetchMetricsData();
     });
 
-    // 초기 데이터 로드
-    fetchMetricsData();
-  });
+    // 일시정지/재개 버튼 이벤트
+    document.getElementById('pauseButton').addEventListener('click', function() {
+      toggleAutoRefresh();
+    });
+
+    // 새로고침 버튼 이벤트
+    document.getElementById('refreshButton').addEventListener('click', function() {
+      fetchMetricsData();
+    });
+  }
+
+  // 자동 새로고침 시작
+  function startAutoRefresh() {
+    if (refreshInterval) {
+      clearInterval(refreshInterval);
+    }
+
+    refreshInterval = setInterval(function() {
+      if (autoRefresh) {
+        fetchMetricsData();
+      }
+    }, refreshIntervalTime);
+  }
+
+  // 자동 새로고침 토글
+  function toggleAutoRefresh() {
+    autoRefresh = !autoRefresh;
+    const pauseButton = document.getElementById('pauseButton');
+
+    if (autoRefresh) {
+      pauseButton.textContent = '일시정지';
+      pauseButton.classList.remove('btn-success');
+      pauseButton.classList.add('btn-outline-secondary');
+    } else {
+      pauseButton.textContent = '재개';
+      pauseButton.classList.remove('btn-outline-secondary');
+      pauseButton.classList.add('btn-success');
+    }
+  }
 
   // 차트 초기화
   function initCharts() {
@@ -213,14 +317,15 @@
     queryTypeChart = new Chart(queryTypeCtx, {
       type: 'doughnut',
       data: {
-        labels: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
+        labels: ['SELECT', 'INSERT', 'UPDATE', 'DELETE', '기타'],
         datasets: [{
-          data: [0, 0, 0, 0],
+          data: [0, 0, 0, 0, 0],
           backgroundColor: [
             'rgba(54, 162, 235, 0.7)',
             'rgba(75, 192, 192, 0.7)',
             'rgba(255, 206, 86, 0.7)',
-            'rgba(255, 99, 132, 0.7)'
+            'rgba(255, 99, 132, 0.7)',
+            'rgba(153, 102, 255, 0.7)'
           ],
           borderWidth: 1
         }]
@@ -313,37 +418,124 @@
   function fetchMetricsData() {
     const selectedService = document.getElementById('serviceSelector').value;
 
-    // 실제 구현에서는 여기에 Prometheus 또는 Actuator 엔드포인트에서 데이터를 가져오는 로직 필요
-    // 예시 코드이므로 랜덤 데이터로 시뮬레이션
+    // 상태 표시 업데이트
+    updateLastUpdated();
 
-    // Prometheus 또는 Actuator 엔드포인트에서 데이터를 가져오는 fetch 요청
-    // fetch(`/api/metrics/${selectedService}`)
-    //     .then(response => response.json())
-    //     .then(data => updateDashboard(data));
+    // API 엔드포인트에서 데이터 가져오기
+    fetch(`/api/metrics/${selectedService}`)
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`메트릭 데이터를 가져오는 중 오류가 발생했습니다: ${response.statusText}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      processMetricsData(data, selectedService);
+      updateServiceStatus(data);
+      updateDashboard();
+    })
+    .catch(error => {
+      console.error('메트릭 데이터를 가져오는 중 오류가 발생했습니다:', error);
 
-    // 임시 데이터 생성 (실제 구현에서는 제거)
-    simulateMetricsData(selectedService);
+      // 오류 발생 시 서비스 상태 업데이트
+      updateServiceStatusOnError();
+
+      // 메트릭 데이터를 초기화
+      resetMetricsData();
+    });
   }
 
-  // 임시 데이터 생성 함수 (실제 구현에서는 제거하고 실제 API 호출로 대체)
-  function simulateMetricsData(service) {
-    // 쿼리 타입 데이터 업데이트
-    queryData.select += Math.floor(Math.random() * 10);
-    queryData.insert += Math.floor(Math.random() * 3);
-    queryData.update += Math.floor(Math.random() * 2);
-    queryData.delete += Math.floor(Math.random() * 1);
+  // 마지막 업데이트 시간 표시
+  function updateLastUpdated() {
+    const now = new Date();
+    const timeString = now.toLocaleTimeString();
+    document.getElementById('lastUpdated').textContent = `마지막 업데이트: ${timeString}`;
+  }
 
-    // 타임라인 데이터 업데이트
+  // 서비스 상태 업데이트
+  function updateServiceStatus(data) {
+    // API Gateway 상태 업데이트
+    let apigatewayOnline = true;
+    if (data.apigateway && data.apigateway.error) {
+      apigatewayOnline = false;
+    }
+
+    // Tech Interview 상태 업데이트
+    let techinterviewOnline = true;
+    if (data.techinterview && data.techinterview.error) {
+      techinterviewOnline = false;
+    }
+
+    // 상태 표시기 업데이트
+    document.getElementById('apigatewayStatus').className =
+        apigatewayOnline ? 'status-indicator status-online' : 'status-indicator status-offline';
+    document.getElementById('apigatewayStatusText').textContent =
+        apigatewayOnline ? '온라인' : '오프라인';
+
+    document.getElementById('techinterviewStatus').className =
+        techinterviewOnline ? 'status-indicator status-online' : 'status-indicator status-offline';
+    document.getElementById('techinterviewStatusText').textContent =
+        techinterviewOnline ? '온라인' : '오프라인';
+  }
+
+  // 오류 발생 시 서비스 상태 업데이트
+  function updateServiceStatusOnError() {
+    document.getElementById('apigatewayStatus').className = 'status-indicator status-offline';
+    document.getElementById('apigatewayStatusText').textContent = '연결 오류';
+
+    document.getElementById('techinterviewStatus').className = 'status-indicator status-offline';
+    document.getElementById('techinterviewStatusText').textContent = '연결 오류';
+  }
+
+  // 메트릭 데이터 초기화
+  function resetMetricsData() {
+    queryData = { select: 0, insert: 0, update: 0, delete: 0, other: 0 };
+    queryTimeData = { fast: 0, medium: 0, slow: 0, verySlow: 0 };
+
+    // 대시보드 업데이트
+    updateDashboard();
+  }
+
+  // API에서 받아온 데이터 처리
+  function processMetricsData(data, selectedService) {
+    // 서비스가 "all"인 경우와 특정 서비스인 경우를 구분하여 처리
+    if (selectedService === 'all') {
+      // "all" 서비스인 경우 - 집계된 데이터 사용
+      queryData.select = data.totalSelectQueries || 0;
+      queryData.insert = data.totalInsertQueries || 0;
+      queryData.update = data.totalUpdateQueries || 0;
+      queryData.delete = data.totalDeleteQueries || 0;
+      queryData.other = data.totalOtherQueries || 0;
+
+      queryTimeData.fast = data.totalQueryTimeFast || 0;
+      queryTimeData.medium = data.totalQueryTimeMedium || 0;
+      queryTimeData.slow = data.totalQueryTimeSlow || 0;
+      queryTimeData.verySlow = data.totalQueryTimeVerySlow || 0;
+    } else {
+      // 특정 서비스인 경우
+      queryData.select = data.selectQueries || 0;
+      queryData.insert = data.insertQueries || 0;
+      queryData.update = data.updateQueries || 0;
+      queryData.delete = data.deleteQueries || 0;
+      queryData.other = data.otherQueries || 0;
+
+      queryTimeData.fast = data.queryTimeFast || 0;
+      queryTimeData.medium = data.queryTimeMedium || 0;
+      queryTimeData.slow = data.queryTimeSlow || 0;
+      queryTimeData.verySlow = data.queryTimeVerySlow || 0;
+    }
+
+    // 현재 시간을 기준으로 타임라인 데이터 추가
     const now = new Date();
     const timeLabel = now.getHours() + ':' +
         (now.getMinutes() < 10 ? '0' : '') + now.getMinutes() + ':' +
         (now.getSeconds() < 10 ? '0' : '') + now.getSeconds();
 
     timelineData.labels.push(timeLabel);
-    timelineData.selectData.push(Math.floor(Math.random() * 15));
-    timelineData.insertData.push(Math.floor(Math.random() * 5));
-    timelineData.updateData.push(Math.floor(Math.random() * 3));
-    timelineData.deleteData.push(Math.floor(Math.random() * 2));
+    timelineData.selectData.push(queryData.select);
+    timelineData.insertData.push(queryData.insert);
+    timelineData.updateData.push(queryData.update);
+    timelineData.deleteData.push(queryData.delete);
 
     // 최대 10개 포인트만 유지
     if (timelineData.labels.length > 10) {
@@ -354,64 +546,42 @@
       timelineData.deleteData.shift();
     }
 
-    // 쿼리 시간 분포 데이터 업데이트
-    queryTimeData.fast = Math.floor(Math.random() * 100);
-    queryTimeData.medium = Math.floor(Math.random() * 40);
-    queryTimeData.slow = Math.floor(Math.random() * 15);
-    queryTimeData.verySlow = Math.floor(Math.random() * 5);
-
-    // 로그 데이터 추가
-    const queryTypes = ['SELECT', 'INSERT', 'UPDATE', 'DELETE'];
-    const randomType = queryTypes[Math.floor(Math.random() * queryTypes.length)];
-    const randomTime = Math.floor(Math.random() * 1000);
-    const randomSQL = getRandomSQL(randomType);
-
-    queryLogs.unshift({
-      time: timeLabel,
-      service: service === 'all' ? (Math.random() > 0.5 ? 'techinterview' : 'apigateway') : service,
-      type: randomType,
-      executionTime: randomTime,
-      sql: randomSQL
-    });
-
-    // 최대 10개 로그만 유지
-    if (queryLogs.length > 10) {
-      queryLogs.pop();
-    }
-
-    // 대시보드 업데이트
-    updateDashboard();
+    // 쿼리 로그 데이터 가져오기
+    fetchQueryLogs(selectedService);
   }
 
-  // 임시 SQL 생성 함수 (실제 구현에서는 제거)
-  function getRandomSQL(type) {
-    const tables = ['member', 'question', 'answer', 'participant', 'tech_interview'];
-    const randomTable = tables[Math.floor(Math.random() * tables.length)];
-
-    switch (type) {
-      case 'SELECT':
-        return `SELECT * FROM ${randomTable} WHERE id = 123`;
-      case 'INSERT':
-        return `INSERT INTO ${randomTable} (name, created_at) VALUES ('Test', NOW())`;
-      case 'UPDATE':
-        return `UPDATE ${randomTable} SET name = 'Updated' WHERE id = 123`;
-      case 'DELETE':
-        return `DELETE FROM ${randomTable} WHERE id = 123`;
-      default:
-        return `SELECT * FROM ${randomTable}`;
-    }
+  // 쿼리 로그 데이터 가져오기
+  function fetchQueryLogs(selectedService) {
+    fetch(`/api/metrics/logs/${selectedService}`)
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('쿼리 로그 데이터를 가져오는 중 오류가 발생했습니다');
+      }
+      return response.json();
+    })
+    .then(data => {
+      // 실제 로그 데이터가 있으면 사용
+      if (data && data.logs && Array.isArray(data.logs)) {
+        queryLogs = data.logs;
+        updateQueryLogTable();
+      }
+    })
+    .catch(error => {
+      console.error('쿼리 로그 데이터를 가져오는 중 오류가 발생했습니다:', error);
+      // 오류 시 로그 테이블 업데이트 안함
+    });
   }
 
   // 대시보드 업데이트
   function updateDashboard() {
     // 요약 지표 업데이트
     document.getElementById('totalQueries').textContent =
-        queryData.select + queryData.insert + queryData.update + queryData.delete;
-    document.getElementById('selectQueries').textContent = queryData.select;
+        Math.round(queryData.select + queryData.insert + queryData.update + queryData.delete + queryData.other);
+    document.getElementById('selectQueries').textContent = Math.round(queryData.select);
     document.getElementById('modifyQueries').textContent =
-        queryData.insert + queryData.update + queryData.delete;
+        Math.round(queryData.insert + queryData.update + queryData.delete);
 
-    // 평균 쿼리 시간 계산 (실제 구현에서는 실제 평균으로 대체)
+    // 평균 쿼리 시간 계산
     const totalQueries = queryTimeData.fast + queryTimeData.medium + queryTimeData.slow + queryTimeData.verySlow;
     const avgTime = totalQueries > 0 ?
         Math.round((queryTimeData.fast * 5 + queryTimeData.medium * 50 +
@@ -420,19 +590,17 @@
 
     // 차트 업데이트
     updateCharts();
-
-    // 로그 테이블 업데이트
-    updateQueryLogTable();
   }
 
   // 차트 업데이트
   function updateCharts() {
     // 쿼리 종류별 차트 업데이트
     queryTypeChart.data.datasets[0].data = [
-      queryData.select,
-      queryData.insert,
-      queryData.update,
-      queryData.delete
+      Math.round(queryData.select),
+      Math.round(queryData.insert),
+      Math.round(queryData.update),
+      Math.round(queryData.delete),
+      Math.round(queryData.other)
     ];
     queryTypeChart.update();
 
@@ -446,10 +614,10 @@
 
     // 쿼리 실행 시간 분포 차트 업데이트
     queryTimeDistributionChart.data.datasets[0].data = [
-      queryTimeData.fast,
-      queryTimeData.medium,
-      queryTimeData.slow,
-      queryTimeData.verySlow
+      Math.round(queryTimeData.fast),
+      Math.round(queryTimeData.medium),
+      Math.round(queryTimeData.slow),
+      Math.round(queryTimeData.verySlow)
     ];
     queryTimeDistributionChart.update();
   }
@@ -484,12 +652,12 @@
       }
 
       row.innerHTML = `
-                    <td>${log.time}</td>
-                    <td>${log.service}</td>
-                    <td class="${typeClass}">${log.type}</td>
-                    <td class="${timeClass}">${log.executionTime} ms</td>
-                    <td><code>${log.sql}</code></td>
-                `;
+        <td>${log.time}</td>
+        <td>${log.service}</td>
+        <td class="${typeClass}">${log.type}</td>
+        <td class="${timeClass}">${log.executionTime} ms</td>
+        <td><code>${log.sql}</code></td>
+      `;
 
       tableBody.appendChild(row);
     });
