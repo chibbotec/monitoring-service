@@ -1,0 +1,10 @@
+spring:
+  cloud:
+    discovery:
+      client:
+        simple:
+          instances:
+            apigateway:
+              - uri: http://172.30.1.23:9000
+            techinterview:
+              - uri: http://172.30.1.23:9040

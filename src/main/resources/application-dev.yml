@@ -1,0 +1,10 @@
+spring:
+  cloud:
+    discovery:
+      client:
+        simple:
+          instances:
+            apigateway:
+              - uri: http://localhost:9000
+            techinterview:
+              - uri: http://localhost:9040

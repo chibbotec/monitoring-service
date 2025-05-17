@@ -1,25 +1,11 @@
 server:
-  port: 8085
-
+  port: 9100
 spring:
   application:
     name: admin-service
-  # 보안 설정 (선택사항)
-  security:
-    user:
-      name: admin
-      password: admin-password
-  # 서비스 디스커버리 설정
-  cloud:
-    discovery:
-      client:
-        simple:
-          instances:
-            apigateway:
-              - uri: http://localhost:9000
-            techinterview:
-              - uri: http://localhost:9040
-
+  profiles:
+    active: dev
+    include: secret
 # Actuator 설정
 management:
   endpoints:
