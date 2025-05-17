@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JPA 쿼리 모니터링 대시보드</title>
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    .dashboard-container {
+      padding: 20px;
+    }
+    .card {
+      margin-bottom: 20px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .chart-container {
+      position: relative;
+      height: 300px;
+      margin-bottom: 20px;
+    }
+    .metric-card {
+      text-align: center;
+      padding: 15px;
+    }
+    .metric-value {
+      font-size: 2.5rem;
+      font-weight: bold;
+    }
+    .metric-label {
+      font-size: 1rem;
+      color: #6c757d;
+    }
+    .service-name {
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+<div class="dashboard-container">
+  <h1 class="mb-4">JPA 쿼리 모니터링 대시보드</h1>
+
+  <!-- 서비스 선택 -->
+  <div class="mb-4">
+    <label for="serviceSelector" class="form-label">서비스 선택:</label>
+    <select id="serviceSelector" class="form-select">
+      <option value="all">전체 서비스</option>
+      <option value="techinterview">Tech Interview 서비스</option>
+      <option value="apigateway">API Gateway</option>
+    </select>
+  </div>
+
+  <!-- 요약 지표 -->
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <div class="card metric-card bg-primary bg-opacity-10">
+        <div class="metric-value" id="totalQueries">0</div>
+        <div class="metric-label">총 쿼리 수</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card metric-card bg-success bg-opacity-10">
+        <div class="metric-value" id="selectQueries">0</div>
+        <div class="metric-label">SELECT 쿼리</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card metric-card bg-warning bg-opacity-10">
+        <div class="metric-value" id="modifyQueries">0</div>
+        <div class="metric-label">변경 쿼리 (INSERT/UPDATE/DELETE)</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card metric-card bg-danger bg-opacity-10">
+        <div class="metric-value" id="avgQueryTime">0 ms</div>
+        <div class="metric-label">평균 쿼리 실행 시간</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 쿼리 종류별 차트 -->
+  <div class="row">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          쿼리 종류별 분포
+        </div>
+        <div class="card-body">
+          <div class="chart-container">
+            <canvas id="queryTypeChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          시간별 쿼리 추이
+        </div>
+        <div class="card-body">
+          <div class="chart-container">
+            <canvas id="queryTimelineChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 쿼리 실행 시간 분포 -->
+  <div class="row">
+    <div class="col-md-12">
+      <div class="card">
+        <div class="card-header">
+          쿼리 실행 시간 분포
+        </div>
+        <div class="card-body">
+          <div class="chart-container">
+            <canvas id="queryTimeDistributionChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 최근 쿼리 로그 -->
+  <div class="row mt-4">
+    <div class="col-md-12">
+      <div class="card">
+        <div class="card-header">
+          최근 쿼리 로그
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-striped">
+              <thead>
+              <tr>
+                <th>시간</th>
+                <th>서비스</th>
+                <th>쿼리 종류</th>
+                <th>실행 시간</th>
+                <th>SQL</th>
+              </tr>
+              </thead>
+              <tbody id="queryLogTable">
+              <!-- 여기에 자바스크립트로 로그 추가 -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- JavaScript 부분 -->
+<script>
+  // 차트 객체 저장 변수
+  let queryTypeChart;
+  let queryTimelineChart;
+  let queryTimeDistributionChart;
+
+  // 데이터 저장 변수
+  let queryData = {
+    select: 0,
+    insert: 0,
+    update: 0,
+    delete: 0
+  };
+
+  let timelineData = {
+    labels: [],
+    selectData: [],
+    insertData: [],
+    updateData: [],
+    deleteData: []
+  };
+
+  let queryTimeData = {
+    fast: 0,    // < 10ms
+    medium: 0,  // 10-100ms
+    slow: 0,    // 100-500ms
+    verySlow: 0 // > 500ms
+  };
+
+  let queryLogs = [];
+
+  // 페이지 로드 시 초기화
+  document.addEventListener('DOMContentLoaded', function() {
+    initCharts();
+
+    // 5초마다 데이터 업데이트
+    setInterval(fetchMetricsData, 5000);
+
+    // 서비스 선택 변경 이벤트
+    document.getElementById('serviceSelector').addEventListener('change', function() {
+      fetchMetricsData();
+    });
+
+    // 초기 데이터 로드
+    fetchMetricsData();
+  });
+
+  // 차트 초기화
+  function initCharts() {
+    // 쿼리 종류별 차트 (도넛 차트)
+    const queryTypeCtx = document.getElementById('queryTypeChart').getContext('2d');
+    queryTypeChart = new Chart(queryTypeCtx, {
+      type: 'doughnut',
+      data: {
+        labels: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
+        datasets: [{
+          data: [0, 0, 0, 0],
+          backgroundColor: [
+            'rgba(54, 162, 235, 0.7)',
+            'rgba(75, 192, 192, 0.7)',
+            'rgba(255, 206, 86, 0.7)',
+            'rgba(255, 99, 132, 0.7)'
+          ],
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false
+      }
+    });
+
+    // 시간별 쿼리 추이 차트 (라인 차트)
+    const queryTimelineCtx = document.getElementById('queryTimelineChart').getContext('2d');
+    queryTimelineChart = new Chart(queryTimelineCtx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [
+          {
+            label: 'SELECT',
+            data: [],
+            borderColor: 'rgba(54, 162, 235, 1)',
+            backgroundColor: 'rgba(54, 162, 235, 0.1)',
+            tension: 0.4
+          },
+          {
+            label: 'INSERT',
+            data: [],
+            borderColor: 'rgba(75, 192, 192, 1)',
+            backgroundColor: 'rgba(75, 192, 192, 0.1)',
+            tension: 0.4
+          },
+          {
+            label: 'UPDATE',
+            data: [],
+            borderColor: 'rgba(255, 206, 86, 1)',
+            backgroundColor: 'rgba(255, 206, 86, 0.1)',
+            tension: 0.4
+          },
+          {
+            label: 'DELETE',
+            data: [],
+            borderColor: 'rgba(255, 99, 132, 1)',
+            backgroundColor: 'rgba(255, 99, 132, 0.1)',
+            tension: 0.4
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: {
+            beginAtZero: true
+          }
+        }
+      }
+    });
+
+    // 쿼리 실행 시간 분포 차트 (바 차트)
+    const queryTimeDistributionCtx = document.getElementById('queryTimeDistributionChart').getContext('2d');
+    queryTimeDistributionChart = new Chart(queryTimeDistributionCtx, {
+      type: 'bar',
+      data: {
+        labels: ['빠름 (<10ms)', '보통 (10-100ms)', '느림 (100-500ms)', '매우 느림 (>500ms)'],
+        datasets: [{
+          label: '쿼리 수',
+          data: [0, 0, 0, 0],
+          backgroundColor: [
+            'rgba(75, 192, 192, 0.7)',
+            'rgba(54, 162, 235, 0.7)',
+            'rgba(255, 206, 86, 0.7)',
+            'rgba(255, 99, 132, 0.7)'
+          ],
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: {
+            beginAtZero: true
+          }
+        }
+      }
+    });
+  }
+
+  // 메트릭 데이터 가져오기
+  function fetchMetricsData() {
+    const selectedService = document.getElementById('serviceSelector').value;
+
+    // 실제 구현에서는 여기에 Prometheus 또는 Actuator 엔드포인트에서 데이터를 가져오는 로직 필요
+    // 예시 코드이므로 랜덤 데이터로 시뮬레이션
+
+    // Prometheus 또는 Actuator 엔드포인트에서 데이터를 가져오는 fetch 요청
+    // fetch(`/api/metrics/${selectedService}`)
+    //     .then(response => response.json())
+    //     .then(data => updateDashboard(data));
+
+    // 임시 데이터 생성 (실제 구현에서는 제거)
+    simulateMetricsData(selectedService);
+  }
+
+  // 임시 데이터 생성 함수 (실제 구현에서는 제거하고 실제 API 호출로 대체)
+  function simulateMetricsData(service) {
+    // 쿼리 타입 데이터 업데이트
+    queryData.select += Math.floor(Math.random() * 10);
+    queryData.insert += Math.floor(Math.random() * 3);
+    queryData.update += Math.floor(Math.random() * 2);
+    queryData.delete += Math.floor(Math.random() * 1);
+
+    // 타임라인 데이터 업데이트
+    const now = new Date();
+    const timeLabel = now.getHours() + ':' +
+        (now.getMinutes() < 10 ? '0' : '') + now.getMinutes() + ':' +
+        (now.getSeconds() < 10 ? '0' : '') + now.getSeconds();
+
+    timelineData.labels.push(timeLabel);
+    timelineData.selectData.push(Math.floor(Math.random() * 15));
+    timelineData.insertData.push(Math.floor(Math.random() * 5));
+    timelineData.updateData.push(Math.floor(Math.random() * 3));
+    timelineData.deleteData.push(Math.floor(Math.random() * 2));
+
+    // 최대 10개 포인트만 유지
+    if (timelineData.labels.length > 10) {
+      timelineData.labels.shift();
+      timelineData.selectData.shift();
+      timelineData.insertData.shift();
+      timelineData.updateData.shift();
+      timelineData.deleteData.shift();
+    }
+
+    // 쿼리 시간 분포 데이터 업데이트
+    queryTimeData.fast = Math.floor(Math.random() * 100);
+    queryTimeData.medium = Math.floor(Math.random() * 40);
+    queryTimeData.slow = Math.floor(Math.random() * 15);
+    queryTimeData.verySlow = Math.floor(Math.random() * 5);
+
+    // 로그 데이터 추가
+    const queryTypes = ['SELECT', 'INSERT', 'UPDATE', 'DELETE'];
+    const randomType = queryTypes[Math.floor(Math.random() * queryTypes.length)];
+    const randomTime = Math.floor(Math.random() * 1000);
+    const randomSQL = getRandomSQL(randomType);
+
+    queryLogs.unshift({
+      time: timeLabel,
+      service: service === 'all' ? (Math.random() > 0.5 ? 'techinterview' : 'apigateway') : service,
+      type: randomType,
+      executionTime: randomTime,
+      sql: randomSQL
+    });
+
+    // 최대 10개 로그만 유지
+    if (queryLogs.length > 10) {
+      queryLogs.pop();
+    }
+
+    // 대시보드 업데이트
+    updateDashboard();
+  }
+
+  // 임시 SQL 생성 함수 (실제 구현에서는 제거)
+  function getRandomSQL(type) {
+    const tables = ['member', 'question', 'answer', 'participant', 'tech_interview'];
+    const randomTable = tables[Math.floor(Math.random() * tables.length)];
+
+    switch (type) {
+      case 'SELECT':
+        return `SELECT * FROM ${randomTable} WHERE id = 123`;
+      case 'INSERT':
+        return `INSERT INTO ${randomTable} (name, created_at) VALUES ('Test', NOW())`;
+      case 'UPDATE':
+        return `UPDATE ${randomTable} SET name = 'Updated' WHERE id = 123`;
+      case 'DELETE':
+        return `DELETE FROM ${randomTable} WHERE id = 123`;
+      default:
+        return `SELECT * FROM ${randomTable}`;
+    }
+  }
+
+  // 대시보드 업데이트
+  function updateDashboard() {
+    // 요약 지표 업데이트
+    document.getElementById('totalQueries').textContent =
+        queryData.select + queryData.insert + queryData.update + queryData.delete;
+    document.getElementById('selectQueries').textContent = queryData.select;
+    document.getElementById('modifyQueries').textContent =
+        queryData.insert + queryData.update + queryData.delete;
+
+    // 평균 쿼리 시간 계산 (실제 구현에서는 실제 평균으로 대체)
+    const totalQueries = queryTimeData.fast + queryTimeData.medium + queryTimeData.slow + queryTimeData.verySlow;
+    const avgTime = totalQueries > 0 ?
+        Math.round((queryTimeData.fast * 5 + queryTimeData.medium * 50 +
+            queryTimeData.slow * 250 + queryTimeData.verySlow * 750) / totalQueries) : 0;
+    document.getElementById('avgQueryTime').textContent = avgTime + ' ms';
+
+    // 차트 업데이트
+    updateCharts();
+
+    // 로그 테이블 업데이트
+    updateQueryLogTable();
+  }
+
+  // 차트 업데이트
+  function updateCharts() {
+    // 쿼리 종류별 차트 업데이트
+    queryTypeChart.data.datasets[0].data = [
+      queryData.select,
+      queryData.insert,
+      queryData.update,
+      queryData.delete
+    ];
+    queryTypeChart.update();
+
+    // 시간별 쿼리 추이 차트 업데이트
+    queryTimelineChart.data.labels = timelineData.labels;
+    queryTimelineChart.data.datasets[0].data = timelineData.selectData;
+    queryTimelineChart.data.datasets[1].data = timelineData.insertData;
+    queryTimelineChart.data.datasets[2].data = timelineData.updateData;
+    queryTimelineChart.data.datasets[3].data = timelineData.deleteData;
+    queryTimelineChart.update();
+
+    // 쿼리 실행 시간 분포 차트 업데이트
+    queryTimeDistributionChart.data.datasets[0].data = [
+      queryTimeData.fast,
+      queryTimeData.medium,
+      queryTimeData.slow,
+      queryTimeData.verySlow
+    ];
+    queryTimeDistributionChart.update();
+  }
+
+  // 쿼리 로그 테이블 업데이트
+  function updateQueryLogTable() {
+    const tableBody = document.getElementById('queryLogTable');
+    tableBody.innerHTML = '';
+
+    queryLogs.forEach(log => {
+      const row = document.createElement('tr');
+
+      // 쿼리 종류에 따른 색상 클래스 설정
+      let typeClass = '';
+      switch(log.type) {
+        case 'SELECT': typeClass = 'text-primary'; break;
+        case 'INSERT': typeClass = 'text-success'; break;
+        case 'UPDATE': typeClass = 'text-warning'; break;
+        case 'DELETE': typeClass = 'text-danger'; break;
+      }
+
+      // 실행 시간에 따른 색상 클래스 설정
+      let timeClass = '';
+      if (log.executionTime < 10) {
+        timeClass = 'text-success';
+      } else if (log.executionTime < 100) {
+        timeClass = 'text-info';
+      } else if (log.executionTime < 500) {
+        timeClass = 'text-warning';
+      } else {
+        timeClass = 'text-danger';
+      }
+
+      row.innerHTML = `
+                    <td>${log.time}</td>
+                    <td>${log.service}</td>
+                    <td class="${typeClass}">${log.type}</td>
+                    <td class="${timeClass}">${log.executionTime} ms</td>
+                    <td><code>${log.sql}</code></td>
+                `;
+
+      tableBody.appendChild(row);
+    });
+  }
+</script>
+</body>
+</html>

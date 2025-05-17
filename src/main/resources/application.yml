@@ -1,0 +1,57 @@
+server:
+  port: 8085
+
+spring:
+  application:
+    name: admin-service
+  # 보안 설정 (선택사항)
+  security:
+    user:
+      name: admin
+      password: admin-password
+  # 서비스 디스커버리 설정
+  cloud:
+    discovery:
+      client:
+        simple:
+          instances:
+            apigateway:
+              - uri: http://localhost:9000
+            techinterview:
+              - uri: http://localhost:9040
+
+# Actuator 설정
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: ALWAYS
+    prometheus:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
+
+# 로깅 설정
+logging:
+  level:
+    root: INFO
+    de.codecentric.boot.admin: DEBUG
+    org.springframework.web: INFO
+
+# Eureka 설정 (만약 사용 중이라면)
+#eureka:
+#  client:
+#    serviceUrl:
+#      defaultZone: http://localhost:8761/eureka/
+eureka:
+  client:
+    enabled: false
+    register-with-eureka: false
+    fetch-registry: false
