@@ -19,7 +19,7 @@ import javax.sql.DataSource;
  */
 @Configuration
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "monitoring.sql.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(name = "monitoring.sql.enabled", havingValue = "true", matchIfMissing = false)
 public class DataSourceProxyConfig {
 
   private final P6SpyEventListener p6SpyEventListener;
