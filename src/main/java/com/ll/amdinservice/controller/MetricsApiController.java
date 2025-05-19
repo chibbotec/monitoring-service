@@ -1,5 +1,6 @@
 package com.ll.amdinservice.controller;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -148,20 +149,20 @@ public ResponseEntity<Map<String, Object>> clearQueryLogs() {
         recentQueryLogs.clear();
         
         // JPAQueryMetricsListener에서 생성한 메트릭 초기화
-        meterRegistry.find("jpa.query.select").counter().reset();
-        meterRegistry.find("jpa.query.insert").counter().reset();
-        meterRegistry.find("jpa.query.update").counter().reset();
-        meterRegistry.find("jpa.query.delete").counter().reset();
-        meterRegistry.find("jpa.query.other").counter().reset();
+        meterRegistry.remove(meterRegistry.find("jpa.query.select").counter());
+        meterRegistry.remove(meterRegistry.find("jpa.query.insert").counter());
+        meterRegistry.remove(meterRegistry.find("jpa.query.update").counter());
+        meterRegistry.remove(meterRegistry.find("jpa.query.delete").counter());
+        meterRegistry.remove(meterRegistry.find("jpa.query.other").counter());
         
         // 쿼리 시간 분포 메트릭 초기화
-        meterRegistry.find("jpa.query.time.fast").counter().reset();
-        meterRegistry.find("jpa.query.time.medium").counter().reset();
-        meterRegistry.find("jpa.query.time.slow").counter().reset();
-        meterRegistry.find("jpa.query.time.very_slow").counter().reset();
+        meterRegistry.remove(meterRegistry.find("jpa.query.time.fast").counter());
+        meterRegistry.remove(meterRegistry.find("jpa.query.time.medium").counter());
+        meterRegistry.remove(meterRegistry.find("jpa.query.time.slow").counter());
+        meterRegistry.remove(meterRegistry.find("jpa.query.time.very_slow").counter());
         
         // 쿼리 실행 시간 타이머 초기화
-        meterRegistry.find("jpa.query.execution.time").timer().reset();
+        meterRegistry.remove(meterRegistry.find("jpa.query.execution.time").timer());
         
         Map<String, Object> response = new HashMap<>();
         response.put("success", true);
