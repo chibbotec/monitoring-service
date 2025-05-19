@@ -68,6 +68,7 @@ class ServiceManager:
         remaining = self._run_command(cmd_list)
         if remaining:
             print("일부 이미지가 정리되지 않았습니다.")
+        ##
 
     # Docker 컨테이너를 실행하는 함수
     def _run_container(self, name: str, port: int) -> None:

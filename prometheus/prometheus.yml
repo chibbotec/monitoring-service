@@ -21,3 +21,8 @@ scrape_configs:
     metrics_path: '/actuator/prometheus'
     static_configs:
       - targets: ['admin:9100']  # 컨테이너 별칭 사용
+
+  - job_name: 'ai_server'  # FastAPI 서버 메트릭 수집
+    metrics_path: '/api/v1/metrics'  # FastAPI의 메트릭 엔드포인트
+    static_configs:
+      - targets: [ 'ai:9090' ]
