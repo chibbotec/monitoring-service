@@ -72,7 +72,11 @@ class ServiceManager:
     # Docker 컨테이너를 실행하는 함수
     def _run_container(self, name: str, port: int) -> None:
         os.system(
-            f"docker run -d --name={name} --network=chibbotec-network --restart unless-stopped -p {port}:9100 -e TZ=Asia/Seoul -v /dockerProjects/chibbotec/admin_service/volumes/gen:/gen --pull always ghcr.io/chibbotec/admin_service")
+            f"docker run -d --name={name} --network=chibbotec-network "
+            f"--network-alias=admin_service "  # 네트워크 별칭 추가
+            f"--restart unless-stopped -p {port}:9100 -e TZ=Asia/Seoul "
+            f"-v /dockerProjects/chibbotec/admin_service/volumes/gen:/gen "
+            f"--pull always ghcr.io/chibbotec/admin_service")
     ##
     def _switch_port(self) -> None:
         # Socat 포트를 전환하는 함수
