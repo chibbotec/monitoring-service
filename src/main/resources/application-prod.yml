@@ -7,4 +7,4 @@ spring:
             apigateway:
               - uri: http://apigateway:9000
             techinterview:
-              - uri: http://techinterview_service:9040
+              - uri: http://techinterview:9040
