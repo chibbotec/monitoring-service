@@ -22,10 +22,13 @@ management:
       show-details: ALWAYS
     prometheus:
       enabled: true
-  metrics:
-    export:
-      prometheus:
+  # Spring Boot 3.2.0에서의 Prometheus 설정
+  prometheus:
+    metrics:
+      export:
         enabled: true
+  # Spring Boot 3.2.0에서의 태그 설정
+  observations:
     tags:
       application: ${spring.application.name}
 
