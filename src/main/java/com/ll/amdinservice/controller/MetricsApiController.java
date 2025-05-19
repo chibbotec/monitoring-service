@@ -324,10 +324,13 @@ public class MetricsApiController {
     Map<String, Object> result = new HashMap<>();
     List<Map<String, Object>> logs = new ArrayList<>();
 
+
+
     // 선택된 서비스에 해당하는 로그만 필터링
-    for (QueryLog log : recentQueryLogs) {
-      if ("all".equals(service) || log.service.equals(service)) {
-        logs.add(log.toMap());
+    for (QueryLog logquery : recentQueryLogs) {
+      log.info("================================================: {}", logquery);
+      if ("all".equals(service) || logquery.service.equals(service)) {
+        logs.add(logquery.toMap());
       }
     }
 
