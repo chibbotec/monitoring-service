@@ -9,6 +9,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
@@ -49,6 +51,19 @@ public class MetricsApiController {
       map.put("sql", sql);
       return map;
     }
+  }
+
+  @PostMapping("/log")
+  public ResponseEntity<Void> addLogEntry(@RequestBody Map<String, Object> logData) {
+    String time = (String) logData.get("time");
+    String service = (String) logData.get("service");
+    String type = (String) logData.get("type");
+    long executionTime = ((Number) logData.get("executionTime")).longValue();
+    String sql = (String) logData.get("sql");
+
+    addQueryLog(time, service, type, executionTime, sql);
+
+    return ResponseEntity.ok().build();
   }
 
   @GetMapping("/{service}")
@@ -241,8 +256,6 @@ public class MetricsApiController {
         (double) apiGatewayMetrics.get("queryTimeVerySlow"));
   }
 
-  // P6Spy 로그 추가 메서드 (다른 서비스에서 호출하는 API)
-  // 실제 프로젝트에서는 이 메서드가 p6spy로부터 로그를 수신하도록 구현해야 함
   public static void addQueryLog(String time, String service, String type, long executionTime, String sql) {
     recentQueryLogs.add(new QueryLog(time, service, type, executionTime, sql));
 
