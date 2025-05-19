@@ -19,7 +19,8 @@ public class SecurityConfig {
                     new AntPathRequestMatcher("/assets/**"),
                     new AntPathRequestMatcher("/login"),
                     new AntPathRequestMatcher("/actuator/**"),
-                    new AntPathRequestMatcher("/instances/**")
+                    new AntPathRequestMatcher("/instances/**"),
+                    new AntPathRequestMatcher("/api/metrics/**")
                 ).permitAll()
                 .anyRequest().authenticated()
         )
@@ -38,7 +39,8 @@ public class SecurityConfig {
                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                 .ignoringRequestMatchers(
                     new AntPathRequestMatcher("/instances"),
-                    new AntPathRequestMatcher("/actuator/**")
+                    new AntPathRequestMatcher("/actuator/**"),
+                    new AntPathRequestMatcher("/api/metrics/**")
                 )
         );
 
