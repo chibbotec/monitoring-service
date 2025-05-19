@@ -86,10 +86,10 @@ public class MetricsApiController {
     // 서비스별 Actuator 엔드포인트 URL 설정
     switch (serviceName) {
       case "techinterview":
-        url = "http://localhost:9040/actuator/prometheus";
+        url = "http://techinterview:9040/actuator/prometheus";
         break;
       case "apigateway":
-        url = "http://localhost:9000/actuator/prometheus";
+        url = "http://apigateway:9000/actuator/prometheus";
         break;
       default:
         throw new IllegalArgumentException("지원하지 않는 서비스: " + serviceName);
@@ -105,19 +105,20 @@ public class MetricsApiController {
       Map<String, Object> errorResult = new HashMap<>();
       errorResult.put("service", serviceName);
       errorResult.put("error", "서비스에 연결할 수 없습니다: " + e.getMessage());
-      errorResult.put("selectQueries", 0);
-      errorResult.put("insertQueries", 0);
-      errorResult.put("updateQueries", 0);
-      errorResult.put("deleteQueries", 0);
-      errorResult.put("otherQueries", 0);
-      errorResult.put("queryExecutionTime", 0);
-      errorResult.put("queryExecutionCount", 0);
-      errorResult.put("queryTimeFast", 0);
-      errorResult.put("queryTimeMedium", 0);
-      errorResult.put("queryTimeSlow", 0);
-      errorResult.put("queryTimeVerySlow", 0);
-      errorResult.put("avgQueryTime", 0);
-      errorResult.put("totalQueries", 0);
+      // Double 타입으로 통일
+      errorResult.put("selectQueries", 0.0);
+      errorResult.put("insertQueries", 0.0);
+      errorResult.put("updateQueries", 0.0);
+      errorResult.put("deleteQueries", 0.0);
+      errorResult.put("otherQueries", 0.0);
+      errorResult.put("queryExecutionTime", 0.0);
+      errorResult.put("queryExecutionCount", 0.0);
+      errorResult.put("queryTimeFast", 0.0);
+      errorResult.put("queryTimeMedium", 0.0);
+      errorResult.put("queryTimeSlow", 0.0);
+      errorResult.put("queryTimeVerySlow", 0.0);
+      errorResult.put("avgQueryTime", 0.0);
+      errorResult.put("totalQueries", 0.0);
       return errorResult;
     }
   }
