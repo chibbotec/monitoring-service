@@ -61,7 +61,7 @@ public class MetricsApiController {
   @PostMapping("/log")
   public ResponseEntity<Map<String, Object>> addLogEntry(@RequestBody Map<String, Object> logData) {
     try {
-      log.debug("Received log data: {}", logData);
+      log.info("=========================================Received log data: {}", logData);
 
       // 필수 필드 추출 및 유효성 검사
       String time = (String) logData.get("time");
