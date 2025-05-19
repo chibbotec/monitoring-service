@@ -23,6 +23,7 @@ import org.springframework.web.client.RestTemplate;
 public class MetricsApiController {
 
   private final RestTemplate restTemplate;
+  private final MeterRegistry meterRegistry;
 
   // 최근 쿼리 로그를 저장하는 큐 (최대 100개 항목을 저장)
   private static final ConcurrentLinkedQueue<QueryLog> recentQueryLogs = new ConcurrentLinkedQueue<>();
@@ -139,6 +140,40 @@ public class MetricsApiController {
       return ResponseEntity.internalServerError().body(result);
     }
   }
+
+@PostMapping("/logs/clear")
+public ResponseEntity<Map<String, Object>> clearQueryLogs() {
+    try {
+        // ConcurrentLinkedQueue 초기화
+        recentQueryLogs.clear();
+        
+        // JPAQueryMetricsListener에서 생성한 메트릭 초기화
+        meterRegistry.find("jpa.query.select").counter().reset();
+        meterRegistry.find("jpa.query.insert").counter().reset();
+        meterRegistry.find("jpa.query.update").counter().reset();
+        meterRegistry.find("jpa.query.delete").counter().reset();
+        meterRegistry.find("jpa.query.other").counter().reset();
+        
+        // 쿼리 시간 분포 메트릭 초기화
+        meterRegistry.find("jpa.query.time.fast").counter().reset();
+        meterRegistry.find("jpa.query.time.medium").counter().reset();
+        meterRegistry.find("jpa.query.time.slow").counter().reset();
+        meterRegistry.find("jpa.query.time.very_slow").counter().reset();
+        
+        // 쿼리 실행 시간 타이머 초기화
+        meterRegistry.find("jpa.query.execution.time").timer().reset();
+        
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        return ResponseEntity.ok(response);
+    } catch (Exception e) {
+        log.error("로그 초기화 중 오류 발생: {}", e.getMessage(), e);
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", false);
+        response.put("message", e.getMessage());
+        return ResponseEntity.internalServerError().body(response);
+    }
+}
 
   private Map<String, Object> fetchServiceMetrics(String serviceName) {
     String url = "";
