@@ -10,14 +10,14 @@ scrape_configs:
   - job_name: 'apigateway'
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['host.docker.internal:8080']
+      - targets: ['apigateway:8080']  # 컨테이너 별칭 사용
 
   - job_name: 'techinterview'
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['host.docker.internal:8081']
+      - targets: ['techinterview:8081']  # 컨테이너 별칭 사용
 
   - job_name: 'admin'
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['host.docker.internal:8085']
+      - targets: ['admin:8085']  # 컨테이너 별칭 사용

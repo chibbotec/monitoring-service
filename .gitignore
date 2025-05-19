@@ -37,3 +37,4 @@ out/
 .vscode/
 application-secret.yml
 application-secret.yml.default
+docker-compose.yml.default
