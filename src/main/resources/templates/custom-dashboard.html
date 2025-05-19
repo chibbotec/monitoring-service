@@ -638,6 +638,7 @@
 
   // 쿼리 로그 데이터 가져오기
   function fetchQueryLogs(selectedService) {
+    console.log("쿼리 데이터 조회 시작!!")
     fetch(`/api/metrics/logs/${selectedService}`)
     .then(response => {
       if (!response.ok) {
