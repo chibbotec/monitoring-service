@@ -33,13 +33,15 @@ public class MetricsApiController {
     private final String type;
     private final long executionTime;
     private final String sql;
+    private final String source; // 추가된 필드
 
-    public QueryLog(String time, String service, String type, long executionTime, String sql) {
+    public QueryLog(String time, String service, String type, long executionTime, String sql, String source) {
       this.time = time;
       this.service = service;
       this.type = type;
       this.executionTime = executionTime;
       this.sql = sql;
+      this.source = source;
     }
 
     public Map<String, Object> toMap() {
@@ -49,19 +51,29 @@ public class MetricsApiController {
       map.put("type", type);
       map.put("executionTime", executionTime);
       map.put("sql", sql);
+      map.put("source", source);
       return map;
     }
   }
 
   @PostMapping("/log")
   public ResponseEntity<Void> addLogEntry(@RequestBody Map<String, Object> logData) {
+    String source = (String) logData.getOrDefault("source", "unknown");
+
+    // p6spy 로그만 처리하고 jpa 로그는 무시
+    if ("jpa".equals(source)) {
+      return ResponseEntity.ok().build();  // jpa 소스의 로그는 처리하지 않고 바로 반환
+    }
+
+    // p6spy 로그 또는 source가 없는 로그(기존 로그와 호환)만 처리
     String time = (String) logData.get("time");
     String service = (String) logData.get("service");
     String type = (String) logData.get("type");
     long executionTime = ((Number) logData.get("executionTime")).longValue();
     String sql = (String) logData.get("sql");
 
-    addQueryLog(time, service, type, executionTime, sql);
+    // 로그 추가
+    addQueryLog(time, service, type, executionTime, sql, source);
 
     return ResponseEntity.ok().build();
   }
@@ -256,13 +268,17 @@ public class MetricsApiController {
         (double) apiGatewayMetrics.get("queryTimeVerySlow"));
   }
 
-  public static void addQueryLog(String time, String service, String type, long executionTime, String sql) {
-    recentQueryLogs.add(new QueryLog(time, service, type, executionTime, sql));
+  public static void addQueryLog(String time, String service, String type, long executionTime, String sql, String source) {
+    recentQueryLogs.add(new QueryLog(time, service, type, executionTime, sql, source));
 
     // 큐 크기 제한
     while (recentQueryLogs.size() > MAX_LOG_SIZE) {
       recentQueryLogs.poll();
     }
+  }
+
+  public static void addQueryLog(String time, String service, String type, long executionTime, String sql) {
+    addQueryLog(time, service, type, executionTime, sql, "unknown");
   }
 
   // 최근 쿼리 로그 가져오기
