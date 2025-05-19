@@ -9,7 +9,7 @@ spring:
   datasource:
     url: jdbc:h2:mem:dummy
     username: sa
-    password:
+    password: 1234
     driver-class-name: org.h2.Driver
 # Actuator 설정
 management:
