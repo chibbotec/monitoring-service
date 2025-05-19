@@ -319,7 +319,8 @@ public class MetricsApiController {
 
   // 최근 쿼리 로그 가져오기
   @GetMapping("/logs/{service}")
-  public ResponseEntity<Map<String, Object>> getQueryLogs(@PathVariable String service) {
+  public ResponseEntity<Map<String, Object>> getQueryLogs(@PathVariable("service") String service) {
+    log.info("================================================Get query logs for {}", service);
     Map<String, Object> result = new HashMap<>();
     List<Map<String, Object>> logs = new ArrayList<>();
 
