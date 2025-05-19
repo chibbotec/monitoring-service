@@ -225,25 +225,22 @@ public class MetricsApiController {
   }
 
   private double extractMetricValue(String prometheusData, String metricName) {
+    // 간단한 정규식을 사용한 메트릭 값 추출
     String[] lines = prometheusData.split("\n");
 
     for (String line : lines) {
-      // 라벨이 있는 메트릭을 올바르게 매치 (instance, job 등의 라벨이 포함됨)
-      if (line.startsWith(metricName + "{") || line.equals(metricName + " ")) {
+      if (line.startsWith(metricName) && !line.startsWith(metricName + "_")) {
         String[] parts = line.split(" ");
         if (parts.length >= 2) {
           try {
             return Double.parseDouble(parts[parts.length - 1]);
           } catch (NumberFormatException e) {
-            log.warn("메트릭 값 변환 실패: {}", line);
             return 0;
           }
         }
       }
     }
 
-    // 메트릭을 찾지 못한 경우 디버깅 로그 추가
-    log.debug("메트릭을 찾을 수 없음: {}", metricName);
     return 0;
   }
 
