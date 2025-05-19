@@ -17,10 +17,10 @@ spring:
       ui:
         external-views:
           - label: "Prometheus"
-            url: "http://172.30.1.23:9200"
+            url: "http://210.113.34.187:9200"
             order: 2000
           - label: "Grafana"
-            url: "http://172.30.1.23:3000"
+            url: "http://210.113.34.187:3000"
             order: 2001
           - label: "JPA 쿼리 모니터링"
             url: "/custom-dashboard"
