@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -18,6 +19,7 @@ import org.springframework.web.client.RestTemplate;
 @RestController
 @RequestMapping("/api/metrics")
 @RequiredArgsConstructor
+@Slf4j
 public class MetricsApiController {
 
   private final RestTemplate restTemplate;
@@ -33,7 +35,7 @@ public class MetricsApiController {
     private final String type;
     private final long executionTime;
     private final String sql;
-    private final String source; // 추가된 필드
+    private final String source; // 소스 추적을 위한 필드 (p6spy, jpa 등)
 
     public QueryLog(String time, String service, String type, long executionTime, String sql, String source) {
       this.time = time;
@@ -57,25 +59,55 @@ public class MetricsApiController {
   }
 
   @PostMapping("/log")
-  public ResponseEntity<Void> addLogEntry(@RequestBody Map<String, Object> logData) {
-    String source = (String) logData.getOrDefault("source", "unknown");
+  public ResponseEntity<Map<String, Object>> addLogEntry(@RequestBody Map<String, Object> logData) {
+    try {
+      log.debug("Received log data: {}", logData);
 
-    // p6spy 로그만 처리하고 jpa 로그는 무시
-    if ("jpa".equals(source)) {
-      return ResponseEntity.ok().build();  // jpa 소스의 로그는 처리하지 않고 바로 반환
+      // 필수 필드 추출 및 유효성 검사
+      String time = (String) logData.get("time");
+      String service = (String) logData.get("service");
+      String type = (String) logData.get("type");
+      Object executionTimeObj = logData.get("executionTime");
+      String sql = (String) logData.get("sql");
+      String source = (String) logData.getOrDefault("source", "unknown");
+
+      if (time == null || service == null || type == null || executionTimeObj == null || sql == null) {
+        log.warn("Missing required fields in log data: {}", logData);
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", false);
+        response.put("message", "Missing required fields");
+        return ResponseEntity.badRequest().body(response);
+      }
+
+      // Number를 long으로 변환
+      long executionTime;
+      if (executionTimeObj instanceof Number) {
+        executionTime = ((Number) executionTimeObj).longValue();
+      } else {
+        try {
+          executionTime = Long.parseLong(executionTimeObj.toString());
+        } catch (NumberFormatException e) {
+          log.warn("Invalid execution time format: {}", executionTimeObj);
+          Map<String, Object> response = new HashMap<>();
+          response.put("success", false);
+          response.put("message", "Invalid execution time format");
+          return ResponseEntity.badRequest().body(response);
+        }
+      }
+
+      // 로그 추가
+      addQueryLog(time, service, type, executionTime, sql, source);
+
+      Map<String, Object> response = new HashMap<>();
+      response.put("success", true);
+      return ResponseEntity.ok(response);
+    } catch (Exception e) {
+      log.error("Error processing log entry: {}", e.getMessage(), e);
+      Map<String, Object> response = new HashMap<>();
+      response.put("success", false);
+      response.put("message", e.getMessage());
+      return ResponseEntity.internalServerError().body(response);
     }
-
-    // p6spy 로그 또는 source가 없는 로그(기존 로그와 호환)만 처리
-    String time = (String) logData.get("time");
-    String service = (String) logData.get("service");
-    String type = (String) logData.get("type");
-    long executionTime = ((Number) logData.get("executionTime")).longValue();
-    String sql = (String) logData.get("sql");
-
-    // 로그 추가
-    addQueryLog(time, service, type, executionTime, sql, source);
-
-    return ResponseEntity.ok().build();
   }
 
   @GetMapping("/{service}")
@@ -102,6 +134,7 @@ public class MetricsApiController {
 
       return ResponseEntity.ok(result);
     } catch (Exception e) {
+      log.error("Error fetching metrics: {}", e.getMessage(), e);
       result.put("error", e.getMessage());
       return ResponseEntity.internalServerError().body(result);
     }
@@ -129,6 +162,7 @@ public class MetricsApiController {
       // Prometheus 형식 데이터 파싱
       return parsePrometheusData(prometheusData, serviceName);
     } catch (Exception e) {
+      log.warn("Error fetching metrics for service {}: {}", serviceName, e.getMessage());
       Map<String, Object> errorResult = new HashMap<>();
       errorResult.put("service", serviceName);
       errorResult.put("error", "서비스에 연결할 수 없습니다: " + e.getMessage());
@@ -268,6 +302,7 @@ public class MetricsApiController {
         (double) apiGatewayMetrics.get("queryTimeVerySlow"));
   }
 
+  // P6Spy 로그 추가 메서드
   public static void addQueryLog(String time, String service, String type, long executionTime, String sql, String source) {
     recentQueryLogs.add(new QueryLog(time, service, type, executionTime, sql, source));
 
@@ -277,6 +312,7 @@ public class MetricsApiController {
     }
   }
 
+  // 이전 버전과의 호환성을 위한 메서드
   public static void addQueryLog(String time, String service, String type, long executionTime, String sql) {
     addQueryLog(time, service, type, executionTime, sql, "unknown");
   }
