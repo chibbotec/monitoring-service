@@ -610,6 +610,10 @@
       updateServiceStatus(data);
       updateDashboard();
 
+      // 디버깅용 로그 추가
+      console.log("메트릭 데이터 로드 완료, 로그 데이터 요청 시도...");
+      console.log("selectedService:", selectedService);
+
       // 로그 데이터도 함께 가져오기
       fetchQueryLogs(selectedService);
     })
