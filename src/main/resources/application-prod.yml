@@ -10,6 +10,12 @@ spring:
           instances:
             apigateway:
               - uri: http://apigateway:9000
+            auth:
+                - uri: http://auth:9010
+            member:
+                - uri: http://member:9020
+            space:
+                - uri: http://space:9030
             techinterview:
               - uri: http://techinterview:9040
             resume:

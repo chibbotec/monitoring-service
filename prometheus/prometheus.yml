@@ -12,17 +12,42 @@ scrape_configs:
     static_configs:
       - targets: ['apigateway:9000']  # 컨테이너 별칭 사용
 
+  - job_name: 'auth'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: [ 'member:9010' ]  # 컨테이너 별칭 사용
+
+  - job_name: 'member'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: [ 'member:9020' ]  # 컨테이너 별칭 사용
+
+  - job_name: 'space'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: [ 'member:9030' ]  # 컨테이너 별칭 사용
+
   - job_name: 'techinterview'
     metrics_path: '/actuator/prometheus'
     static_configs:
       - targets: ['techinterview:9040']  # 컨테이너 별칭 사용
+
+  - job_name: 'resume'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['techinterview:9060']  # 컨테이너 별칭 사용
+
+  - job_name: 'ai_server'  # FastAPI 서버 메트릭 수집
+    metrics_path: '/api/v1/metrics'  # FastAPI의 메트릭 엔드포인트
+    static_configs:
+      - targets: [ 'ai:9090' ]
 
   - job_name: 'admin'
     metrics_path: '/actuator/prometheus'
     static_configs:
       - targets: ['admin:9100']  # 컨테이너 별칭 사용
 
-  - job_name: 'ai_server'  # FastAPI 서버 메트릭 수집
-    metrics_path: '/api/v1/metrics'  # FastAPI의 메트릭 엔드포인트
-    static_configs:
-      - targets: [ 'ai:9090' ]
+
+
+
+
