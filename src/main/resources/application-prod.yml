@@ -12,6 +12,8 @@ spring:
               - uri: http://apigateway:9000
             techinterview:
               - uri: http://techinterview:9040
+            resume:
+              - uri: http://resume:9060
   boot:
     admin:
       discovery:
