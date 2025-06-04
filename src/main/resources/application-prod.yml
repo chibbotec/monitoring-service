@@ -37,3 +37,6 @@ spring:
           - label: "JPA 쿼리 모니터링"
             url: "/custom-dashboard"
             order: 1000
+          - label: "JPA 쿼리 모니터링"
+            url: "http://210.113.34.187:9300"
+            order: 2002
